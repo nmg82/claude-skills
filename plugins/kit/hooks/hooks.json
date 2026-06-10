@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/handoff.md\"; if [ -f \"$f\" ]; then echo \"An existing handoff.md was found for this worktree. Read it now to restore context before continuing:\"; echo; cat \"$f\"; fi"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); tp=$(printf '%s' \"$input\" | jq -r '.transcript_path // empty'); if [ -n \"$tp\" ] && [ -f \"$tp\" ]; then d=\"$CLAUDE_PROJECT_DIR/.handoff-backups\"; mkdir -p \"$d\"; cp \"$tp\" \"$d/transcript-$(date +%Y%m%d-%H%M%S).jsonl\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

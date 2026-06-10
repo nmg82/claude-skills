@@ -1,0 +1,8 @@
+{
+  "name": "kit",
+  "version": "0.1.0",
+  "description": "Nathan's workflow skills: handoff (session continuity across compaction/resume) and pr-review (no-auto-post consensus review).",
+  "author": {
+    "name": "Nathan Gladson"
+  }
+}

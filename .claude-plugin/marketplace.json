@@ -1,0 +1,14 @@
+{
+  "name": "claude-skills",
+  "owner": {
+    "name": "Nathan Gladson"
+  },
+  "description": "Nathan's Claude Code skills and workflow tooling.",
+  "plugins": [
+    {
+      "name": "kit",
+      "source": "./plugins/kit",
+      "description": "Workflow skills: handoff (session continuity) and pr-review (no-auto-post consensus review)."
+    }
+  ]
+}
