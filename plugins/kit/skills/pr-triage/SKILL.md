@@ -61,8 +61,12 @@ verdict's confidence one notch, and say so in the table header.
 4. **GitHub wiki** — the repo's wiki is its own git repo (`OWNER/REPO.wiki.git`).
    Enumerate it and read the page(s) relevant to the ticket/diff for design
    detail. No hard link needed.
-5. **`handoff.md`** — its "Key decisions & rationale" and "Open questions"
-   sections act as the decisions log; cite them for `rejected by decisions`.
+5. **`.claude-plans/<key>/plan.md`** — the per-ticket plan written by
+   `kit:ticket-kickoff` (resolve `<key>` from the branch). Its "Approach &
+   decisions" section is the primary decisions log; cite it for
+   `won't-fix: rejected by decisions`.
+6. **`handoff.md`** — fallback decisions log when no plan doc exists; use its
+   "Key decisions & rationale" and "Open questions" sections.
 
 ## Grading Rubric
 
