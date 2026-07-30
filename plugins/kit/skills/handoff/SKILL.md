@@ -60,14 +60,31 @@ What was tried and failed; constraints discovered; things NOT to do.
   exist elsewhere.
 - **Redact secrets and PII.** Never write API keys, tokens, passwords, or
   personal data into the file.
-- **Stay under 400 words (~3KB).** This file is injected into context at every
-  session start, so its size is a tax on every future session in this worktree.
-  The cap is not a target to fill. Each overwrite prunes: drop what's now
-  irrelevant, collapse finished steps into one line, and move anything that grew
-  past the cap into a linked doc. If a section is empty, drop it rather than
-  padding it.
+- **Stay under 400 words**, measured with `wc -w handoff.md`. This file is injected
+  into context at every session start, so its size taxes every future session in
+  this worktree. The cap is not a target to fill. Each overwrite prunes: drop
+  what's now irrelevant, collapse finished steps into one line, and move anything
+  past the cap into a linked doc. Drop empty sections rather than padding them.
 - **Stay current.** A stale handoff is worse than none — update it as state
   changes.
+
+## A Handoff You Didn't Write
+
+"Overwrite the file each time" means *your* handoff, not any handoff. On your first
+write of a session, if `handoff.md` already exists, read its **Current goal** and
+compare it to yours:
+
+- **Same ticket/goal as yours** → it's your own earlier snapshot. Overwrite it.
+- **A different ticket** → another session is working here. Do NOT overwrite.
+  Copy it to `handoff-<their-key>.md` beside it, then tell the user both exist and
+  which is which. They decide what survives.
+
+An overwrite here is unrecoverable and there is no undo: `handoff.md` is
+gitignored, so git never had a copy, and `~/.claude/handoff-backups/` holds
+transcripts only — nothing named `handoff.md`.
+
+Absent code is not evidence that a different ticket's handoff is stale — see
+On Resume before concluding that.
 
 ## Before the First Write
 
@@ -86,18 +103,25 @@ work that may already be done or abandoned.
 Check state before acting on it:
 
 ```bash
-git log --oneline -5          # does the described work already exist?
+git log --oneline -5          # is work the handoff calls DONE actually committed?
 git branch --show-current     # is the branch it names still the one you're on?
 gh pr view --json state       # is the PR it points at already merged/closed?
 ```
 
-If the handoff disagrees with the repo, the repo wins. Say so explicitly rather
-than silently working from stale prose.
+Read each result against the section it came from. Missing work is evidence of
+staleness only where the handoff claims it is **done**. Where the handoff lists it
+under **Next steps**, its absence confirms the file is current — that is the work
+still to do, not proof the handoff is abandoned. Inverting this reads a live
+handoff as garbage.
 
-The raw pre-compaction transcript is backed up outside the repo, under
-`~/.claude/handoff-backups/<repo>/<branch>/`, if you need to recover a detail
-the handoff missed. Backups keep the newest 5 per branch and are dropped after
-90 days.
+If the handoff's *completed* claims disagree with the repo, the repo wins. Say so
+explicitly rather than silently working from stale prose.
+
+The raw pre-compaction **transcript** is backed up outside the repo, under
+`~/.claude/handoff-backups/<repo>/<branch>/`, if you need to recover a detail the
+handoff missed. Transcripts only — that directory holds no copy of `handoff.md` and
+cannot restore one that was overwritten. Backups keep the newest 5 per branch and
+are dropped after 90 days.
 
 ## Retiring the Handoff
 
