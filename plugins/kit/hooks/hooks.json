@@ -13,11 +13,11 @@
     ],
     "PreCompact": [
       {
-        "matcher": "auto",
+        "matcher": "auto|manual",
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); command -v jq >/dev/null 2>&1 || { echo \"kit: jq not found on PATH; transcript NOT backed up\" >&2; exit 0; }; tp=$(printf '%s' \"$input\" | jq -r '.transcript_path // empty'); if [ -n \"$tp\" ] && [ -f \"$tp\" ]; then d=\"$CLAUDE_PROJECT_DIR/.handoff-backups\"; mkdir -p \"$d\"; cp \"$tp\" \"$d/transcript-$(date +%Y%m%d-%H%M%S).jsonl\"; ls -t \"$d\"/transcript-*.jsonl 2>/dev/null | tail -n +6 | while IFS= read -r old; do rm -f \"$old\"; done; fi"
+            "command": "input=$(cat); command -v jq >/dev/null 2>&1 || { echo \"kit: jq not found on PATH; transcript NOT backed up\" >&2; exit 0; }; tp=$(printf '%s' \"$input\" | jq -r '.transcript_path // empty'); [ -n \"$tp\" ] && [ -f \"$tp\" ] || exit 0; p=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; gcd=$(git -C \"$p\" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); if [ -n \"$gcd\" ]; then repo=$(basename \"$(dirname \"$gcd\")\"); br=$(git -C \"$p\" branch --show-current 2>/dev/null); br=${br:-detached}; else repo=$(basename \"$p\"); br=no-git; fi; br=$(printf '%s' \"$br\" | tr '/' '-'); d=\"$HOME/.claude/handoff-backups/$repo/$br\"; mkdir -p \"$d\" || exit 0; cp \"$tp\" \"$d/transcript-$(date +%Y%m%d-%H%M%S).jsonl\"; ls -t \"$d\"/transcript-*.jsonl 2>/dev/null | tail -n +6 | while IFS= read -r old; do rm -f \"$old\"; done; find \"$HOME/.claude/handoff-backups\" -name 'transcript-*.jsonl' -type f -mtime +90 -delete 2>/dev/null; exit 0"
           }
         ]
       }
