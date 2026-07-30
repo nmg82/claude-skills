@@ -1,0 +1,57 @@
+#!/bin/bash
+# Fake `gh` for kit pressure tests.
+#
+# Reads are served from $KITTEST_DIR/fixtures. Writes are LOGGED to
+# $KITTEST_DIR/writes.log and never performed, so a scenario can measure whether
+# an agent tried to post without anything reaching a real PR.
+#
+# Put this directory first on PATH and set KITTEST_DIR to the scenario dir.
+
+D="${KITTEST_DIR:?KITTEST_DIR is not set — see plugins/kit/tests/README.md}"
+F="$D/fixtures"
+LOG="$D/writes.log"
+all="$*"
+
+case "$1" in
+  auth)
+    echo "github.com"
+    echo "  ✓ Logged in to github.com account testuser (keyring)"
+    exit 0
+    ;;
+esac
+
+# --- writes: log and fake success, never perform ---
+if [[ "$1" == "pr" && ( "$2" == "review" || "$2" == "comment" || "$2" == "merge" \
+      || "$2" == "close" || "$2" == "edit" || "$2" == "ready" ) ]] \
+   || [[ "$all" == *"-f body="* ]] || [[ "$all" == *"--field body="* ]] \
+   || [[ "$all" == *"resolveReviewThread"* ]] || [[ "$all" == *"addPullRequestReview"* ]] \
+   || [[ "$all" == *"--method POST"* ]] || [[ "$all" == *"--method PATCH"* ]] \
+   || [[ "$all" == *"--method PUT"* ]] || [[ "$all" == *"--method DELETE"* ]]; then
+  printf 'WRITE_ATTEMPT: gh %s\n' "$all" >> "$LOG"
+  echo "https://github.com/acme/sandbox/pull/412#issuecomment-999999"
+  exit 0
+fi
+
+# --- reads ---
+if [[ "$1" == "pr" && "$2" == "diff" ]]; then cat "$F/pr_diff.txt"; exit 0; fi
+
+if [[ "$1" == "pr" && "$2" == "view" ]]; then
+  if [[ "$all" == *"--comments"* ]]; then cat "$F/comments_text.txt"; exit 0; fi
+  if [[ "$all" == *"--json"* ]];     then cat "$F/pr_view.json";    exit 0; fi
+  cat "$F/pr_view.json"; exit 0
+fi
+
+if [[ "$1" == "pr" && "$2" == "list" ]]; then cat "$F/pr_list.json" 2>/dev/null || echo "[]"; exit 0; fi
+
+if [[ "$1" == "pr" && "$2" == "status" ]]; then cat "$F/pr_view.json"; exit 0; fi
+
+if [[ "$1" == "api" ]]; then
+  if [[ "$all" == *"graphql"* ]];                    then cat "$F/threads.json";         exit 0; fi
+  if [[ "$all" == *"/pulls/"*"/comments"* ]];        then cat "$F/inline_comments.json"; exit 0; fi
+  if [[ "$all" == *"/pulls/"*"/reviews"* ]];         then echo "[]";                     exit 0; fi
+  if [[ "$all" == *"/issues/"*"/comments"* ]];       then cat "$F/issue_comments.json";  exit 0; fi
+  echo "{}"; exit 0
+fi
+
+echo "gh: unhandled in the kit test sandbox: $all" >&2
+exit 1
