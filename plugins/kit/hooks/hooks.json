@@ -2,11 +2,11 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$CLAUDE_PROJECT_DIR/handoff.md\"; if [ -f \"$f\" ]; then echo \"An existing handoff.md was found for this worktree. Read it now to restore context before continuing:\"; echo; cat \"$f\"; fi"
+            "command": "f=\"$CLAUDE_PROJECT_DIR/handoff.md\"; if [ -f \"$f\" ]; then ts=$(date -r \"$f\" '+%Y-%m-%d %H:%M' 2>/dev/null || stat -c %y \"$f\" 2>/dev/null); echo \"An existing handoff.md was found for this worktree (last updated: ${ts:-unknown}). Read it now to restore context before continuing. If it predates recent commits, trust the repo over the handoff and say so:\"; echo; cat \"$f\"; fi"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); tp=$(printf '%s' \"$input\" | jq -r '.transcript_path // empty'); if [ -n \"$tp\" ] && [ -f \"$tp\" ]; then d=\"$CLAUDE_PROJECT_DIR/.handoff-backups\"; mkdir -p \"$d\"; cp \"$tp\" \"$d/transcript-$(date +%Y%m%d-%H%M%S).jsonl\"; fi"
+            "command": "input=$(cat); command -v jq >/dev/null 2>&1 || { echo \"kit: jq not found on PATH; transcript NOT backed up\" >&2; exit 0; }; tp=$(printf '%s' \"$input\" | jq -r '.transcript_path // empty'); if [ -n \"$tp\" ] && [ -f \"$tp\" ]; then d=\"$CLAUDE_PROJECT_DIR/.handoff-backups\"; mkdir -p \"$d\"; cp \"$tp\" \"$d/transcript-$(date +%Y%m%d-%H%M%S).jsonl\"; ls -t \"$d\"/transcript-*.jsonl 2>/dev/null | tail -n +6 | while IFS= read -r old; do rm -f \"$old\"; done; fi"
           }
         ]
       }

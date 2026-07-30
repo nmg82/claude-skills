@@ -8,7 +8,7 @@
     {
       "name": "kit",
       "source": "./plugins/kit",
-      "description": "Workflow skills: handoff (session continuity) and pr-review (no-auto-post consensus review)."
+      "description": "Workflow skills: handoff (session continuity), pr-review (no-auto-post review ending in a merge verdict), pr-triage (answer review comments on your PR), ticket-kickoff (Jira ticket -> worktree + plan)."
     }
   ]
 }

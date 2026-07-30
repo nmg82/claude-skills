@@ -1,6 +1,6 @@
 ---
 name: pr-triage
-description: Use when asked to triage PR review comments, handle/address/respond to review feedback on your own PR, respond to the bots (Codex, Copilot, CodeRabbit) or a human reviewer, or resolve review threads. The companion to pr-review — pr-review is you reviewing someone else's PR; pr-triage is you answering reviewers on yours. Opt out when the user says they'll handle the comments themselves, or names a single trivial comment to fix directly.
+description: Use when asked to triage PR review comments, handle/address/respond to review feedback on your own PR, answer the bots (Codex, Copilot, CodeRabbit) or a human reviewer, resolve review threads, or drive a PR to zero unresolved comments. Opt out when the user says they'll handle the comments themselves, names a single trivial comment to fix directly, or is reviewing someone else's PR (use kit:pr-review).
 ---
 
 # PR Triage
@@ -38,14 +38,20 @@ what the comments ask for.
 3. **Fetch all unresolved comments** (see GitHub Interaction below). Classify
    each as `bot` or `human`. Quarantine stale comments (line moved) separately —
    never auto-act on them.
-4. **Load context** for grading (see Context Loading).
-5. **Grade every comment** against that context (see Grading Rubric).
-6. **Present the approval table** and wait. Nothing has touched disk yet.
-7. **Apply the approved fixes** to the working tree (Edit), draft every reply,
-   and show the user the resulting `git diff`. **Stop here.**
-8. **One "go" gate:** on the user's explicit go, commit → push → post replies →
+4. **Cluster duplicates.** Copilot, CodeRabbit, and Codex routinely flag the same
+   line. Group comments that share a `file:line` and the same underlying claim
+   into one cluster. Grade the cluster once; the verdict applies to every thread
+   in it. Each thread still gets its own reply and its own resolve decision.
+5. **Load context** for grading (see Context Loading).
+6. **Grade every cluster** against that context (see Grading Rubric).
+7. **Present the approval table** and wait. Nothing has touched disk yet.
+8. **Apply the approved fixes** to the working tree (Edit), then **verify**: run
+   the repo's build, tests, and linters and paste the actual output. Draft every
+   reply and show the user the resulting `git diff`. **Stop here.**
+9. **One "go" gate:** on the user's explicit go, commit → push → post replies →
    resolve threads, in that order. Nothing in this step happens without that go.
-9. **Summarize** what was applied, pushed, replied, and resolved.
+10. **Summarize** what was applied, pushed, replied, and resolved — and close with
+    the remaining unresolved-thread count (target 0) and the verification result.
 
 ## Context Loading
 
@@ -55,23 +61,43 @@ verdict's confidence one notch, and say so in the table header.
 
 1. **The diff** each comment anchors to — always.
 2. **`CLAUDE.md`** repo conventions — always.
-3. **Linked Jira ticket** via the Atlassian MCP — when the branch or PR
-   references an `MSP-XXXX` key. The ticket is the source of truth for intent
-   and scope.
+3. **Linked Jira ticket** via the Atlassian MCP — see Resolving the Ticket Key.
+   The ticket is the source of truth for intent and scope.
 4. **GitHub wiki** — the repo's wiki is its own git repo (`OWNER/REPO.wiki.git`).
    Enumerate it and read the page(s) relevant to the ticket/diff for design
    detail. No hard link needed.
-5. **`.claude-plans/<key>/plan.md`** — the per-ticket plan written by
-   `kit:ticket-kickoff` (resolve `<key>` from the branch). Its "Approach &
-   decisions" section is the primary decisions log; cite it for
+5. **The per-ticket plan** written by `kit:ticket-kickoff`. Find it by glob, not
+   by exact path — the directory carries a slug and the filename varies:
+
+   ```bash
+   ls .claude-plans/${KEY}*/*.md          # e.g. .claude-plans/MSP-7361-sts-refresh/plan.md
+   ```
+
+   Its "Approach & decisions" section is the primary decisions log; cite it for
    `won't-fix: rejected by decisions`.
 6. **`handoff.md`** — fallback decisions log when no plan doc exists; use its
    "Key decisions & rationale" and "Open questions" sections.
+
+### Resolving the Ticket Key
+
+Search the branch name for `[A-Z][A-Z0-9]+-[0-9]+` **anywhere in the string** —
+branches appear as both `MSP-7109-create-user-account` and
+`worktree-MSP-7195-list-mfa`, so anchoring at the start misses half of them. If
+the branch has no match, try the PR title, then the PR body.
+
+Validate the candidate with the Atlassian MCP before trusting it: the pattern
+also matches things like `UTF-8`, `HTTP-2`, and `OAUTH-2`. If the issue lookup
+fails, treat it as "no key found" and degrade — never invent a ticket. `MSP` is
+the usual project; if several candidates match, prefer it.
 
 ## Grading Rubric
 
 Grade bot and human comments identically — author only affects the resolve
 policy, never the verdict.
+
+**REQUIRED BACKGROUND:** `superpowers:receiving-code-review` governs the posture
+here — verify each claim technically instead of agreeing performatively, and
+don't implement a suggestion you can't justify.
 
 | Verdict | When |
 |---|---|
@@ -107,18 +133,27 @@ Stale (line moved, not auto-actioned):
 The user approves all, approves a subset (`1,3`), overrides a verdict
 (`override 2: fix`), or skips. **Never apply anything without approval.**
 
+## Verification Before the Gate
+
+Fixes go out onto a live PR in front of a reviewer. Before presenting the gate,
+run the repo's build, tests, and linters and paste the real output. Never present
+the gate on red — fix or drop the offending change first, and say which.
+
+**REQUIRED:** `superpowers:verification-before-completion` — evidence before
+assertions. "The change is small" is not verification.
+
 ## The "Go" Gate
 
-After fixes are applied locally and the diff is shown, restate exactly what will
-happen and wait for an explicit go:
+After fixes are applied locally, verification is green, and the diff is shown,
+restate exactly what will happen and wait for an explicit go:
 
 > Ready to commit `<N>` fixes, push to `<branch>`, post `<M>` replies, and
-> resolve `<K>` bot threads. Go?
+> resolve `<K>` bot threads. Tests/lint green (`<result>`). Go?
 
 Only on "go" / "yes" / "do it":
 
-1. **Commit.** Single commit by default. If the branch carries an `MSP-XXXX`
-   key, lead the message with it, matching repo style. Body lists one line per
+1. **Commit.** Single commit by default. If a ticket key was resolved, lead the
+   message with it, matching repo style. Body lists one line per
    fix (`- <file>:<line>: <summary>`).
 2. **Push.** Plain `git push` — never force, never rebase. Appending commits is
    the reviewer's audit trail. If the push is rejected, surface it and stop;
@@ -182,10 +217,24 @@ gh api graphql -f query='mutation{ resolveReviewThread(input:{threadId:"'$THREAD
 Filter to unresolved threads. Treat `position: null` (REST) or `isOutdated`
 (GraphQL) as stale → quarantine.
 
+## Rationalizations
+
+| Excuse | Reality |
+|---|---|
+| "The user approved the table, so pushing is implied." | The table approves *verdicts*. The go gate is a separate yes. |
+| "It's a one-line typo — grading is overkill." | Every comment gets a verdict and a rationale. One line still needs a reply. |
+| "CodeRabbit is usually right." | Bots are graded identically to humans, against the diff. Usually-right is not a verdict. |
+| "The fix is trivial, tests don't need to run." | Trivial fixes break builds. The reviewer sees the red, not your confidence. |
+| "The human's thread is clearly addressed — I'll resolve it." | Never resolve a human thread. Reply; they close it. |
+| "Three bots flagged it, so it's three issues." | Cluster first. Three threads, one verdict. |
+| "The plan doc doesn't exist, so there are no decisions to check." | Glob before concluding that — then fall back to `handoff.md`, and say confidence dropped. |
+
 ## Guardrails — STOP
 
 - About to commit, push, post a reply, or resolve a thread before the user's
   explicit "go" → STOP.
+- About to present the go gate without pasted test/lint output → STOP. Verify first.
+- About to grade duplicate comments separately → STOP. Cluster, then grade once.
 - Treating the verdict-table approval as authorization to commit/push/post → STOP.
   Those are separate; the "go" gate is its own yes.
 - About to force-push or rebase over review-feedback commits → STOP. Append only.

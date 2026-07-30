@@ -1,17 +1,17 @@
 ---
 name: ticket-kickoff
-description: Use when starting work on a Jira ticket — "kick off MSP-1234", "start MSP-1234", "plan MSP-1234", "set up the ticket", "begin work on MSP-1234". Pulls the ticket via the Atlassian MCP, creates an isolated git worktree, transitions the ticket to In Progress, gathers context (linked tickets + GitHub wiki + the repo code it touches), drafts a plan grounded in the repo's conventions, and on approval persists it to .claude-plans/<key>/plan.md. The front half of ticket work — it does NOT write feature code. Opt out when the user only wants a bare branch, or has already set up the workspace.
+description: Use when starting work on a Jira ticket — "kick off MSP-1234", "start MSP-1234", "plan MSP-1234", "set up the ticket", "begin work on MSP-1234". Opt out when the user only wants a bare branch, has already set up the workspace, or is ready to implement against a plan that already exists.
 ---
 
 # Ticket Kickoff
 
 ## Overview
 
-Turn an `MSP-XXXX` ticket into a ready-to-work setup: an isolated worktree, the
-ticket moved to In Progress, and a persisted plan you've approved. This is the
-front half of ticket work — it does NOT write feature code. The plan it leaves
-behind is the durable artifact `kit:pr-triage` later grades review comments
-against, closing the loop between the two skills.
+Turn a Jira ticket into a ready-to-work setup: an isolated worktree, the ticket
+moved to In Progress, and a persisted plan you've approved. This is the front
+half of ticket work — it does NOT write feature code. The plan it leaves behind
+is the durable artifact `kit:pr-triage` later grades review comments against,
+closing the loop between the two skills.
 
 ## Safety profile
 
@@ -22,8 +22,12 @@ commit, no push, no PR, no code. The only approval gate is on the plan content.
 
 ## When to trigger
 
-Trigger phrases and opt-outs are in the frontmatter. The input is an `MSP-XXXX`
-key — if the user didn't give one, ask for it before doing anything.
+Trigger phrases and opt-outs are in the frontmatter. The input is a ticket key —
+if the user didn't give one, ask for it before doing anything.
+
+**The key** is whatever the user said, matching `[A-Z][A-Z0-9]+-[0-9]+` (`MSP` is
+the usual project, but don't require it). Confirm it resolves in Jira before
+building anything on it.
 
 **Scope:** ticket → worktree + plan. Not in scope: writing the implementation,
 committing, pushing, opening a PR.
@@ -34,22 +38,36 @@ committing, pushing, opening a PR.
    description, acceptance criteria, status, and linked/sub-tickets. If the MCP
    is unavailable (e.g. headless run), say so and stop — the ticket is the whole
    input and there's no fallback.
-2. **Confirm the slug + branch.** Propose `MSP-XXXX-<slug>` derived from the
-   ticket title; let the user edit it. The worktree branch will be
-   `worktree-MSP-XXXX-<slug>`.
-3. **Create the worktree.** Hand off to `superpowers:using-git-worktrees` →
-   worktree at `.claude/worktrees/MSP-XXXX-<slug>/`, branch
-   `worktree-MSP-XXXX-<slug>`. Work continues inside it.
+2. **Confirm the slug + branch.** Propose `<KEY>-<slug>` derived from the ticket
+   title; let the user edit it.
+3. **Create the worktree.** Hand off to `superpowers:using-git-worktrees`, which
+   prefers the harness's native worktree tool. Let it choose the location and
+   branch name rather than dictating either — in practice that's
+   `.claude/worktrees/<KEY>-<slug>/` on a branch the harness may prefix
+   (`worktree-<KEY>-<slug>`), but the git fallback uses `.worktrees/` instead.
+   Report the actual path and branch it produced. Work continues inside it.
 4. **Transition the ticket to In Progress.** Read the available transitions via
    the Atlassian MCP; if the ticket isn't already In Progress and that
    transition exists, apply it. Announce what changed. If the transition isn't
    available or the status can't be read, note it and continue — never block
    kickoff on this.
 5. **Gather context** (see Context Gathering).
-6. **Draft the plan** in the structure below and present it in chat for the
+6. **Draft the plan** (see Drafting the Plan) and present it in chat for the
    user's edits/approval. Nothing is persisted yet.
-7. **Persist on approval** to `.claude-plans/MSP-XXXX-<slug>/plan.md` inside the
+7. **Persist on approval** to `.claude-plans/<KEY>-<slug>/plan.md` inside the
    worktree. Report the path. Done — the user codes from there.
+
+## If the User Bails at the Plan Gate
+
+Steps 3–4 create real state before the only approval gate. If the user rejects
+the plan and doesn't want to iterate, offer to unwind both:
+
+- Remove the worktree (`ExitWorktree` with `action: "remove"`, or
+  `git worktree remove` for a fallback-created one).
+- Transition the ticket back to its prior status, which you captured in step 1.
+
+Offer it; don't do it unprompted. Leaving a ticket marked In Progress with no
+worktree and no plan is the outcome to avoid.
 
 ## Context Gathering
 
@@ -59,28 +77,31 @@ Before drafting, gather (degrade gracefully on anything missing):
 2. **GitHub wiki** — the repo's wiki is its own git repo (`OWNER/REPO.wiki.git`).
    Enumerate it via `gh` and read the page(s) relevant to the ticket for design
    detail. No hard link needed.
-3. **Repo code** — scan the modules the ticket will touch (domain, repository,
-   handler, tests), following the structure and conventions in `CLAUDE.md`. The
-   plan must reflect the code that actually exists, not assumptions.
+3. **Repo code** — scan the modules the ticket will touch, following the
+   structure and conventions in the repo's `CLAUDE.md`. The plan must reflect the
+   code that actually exists, not assumptions.
 
-## Plan Doc Structure
+## Drafting the Plan
 
-Tune the plan to the repo's conventions (read `CLAUDE.md`). For this repo's
-functional-domain pattern, that means:
+**REQUIRED:** Use `superpowers:writing-plans` for plan structure and step
+granularity. Don't hand-roll a format.
+
+Add these ticket-specific sections on top of whatever that skill produces:
 
 - **Ticket** — key, title, link, acceptance criteria.
 - **Design refs** — wiki page links; the related modules/files found in the scan.
 - **Approach & decisions** — the chosen approach and *why*, plus alternatives
   considered and rejected. This section is what `kit:pr-triage` reads to judge
-  "won't-fix: rejected by decisions" — be explicit about what was decided against.
-- **Implementation steps** — ordered, following the domain flow: domain module
-  (validation + entity construction, Result type) → repository (persistence) →
-  handler (thin orchestration) → tests (`node:test`). Adapt to whatever the
-  ticket actually touches.
+  `won't-fix: rejected by decisions` — be explicit about what was decided
+  against, or that verdict has nothing to cite.
 - **Open questions** — anything to confirm before or during coding.
 
-Keep it lean — omit empty/boilerplate sections rather than filling them with
-"N/A".
+**Derive implementation-step ordering from the target repo**, not from this
+skill: read its `CLAUDE.md` and mirror the layering its existing modules already
+use. This plugin is installed globally and every repo differs — a Go service, a
+functional-domain Node service, and an infra repo need different orderings.
+
+Keep it lean — omit empty sections rather than filling them with "N/A".
 
 ## GitHub & Jira Interaction
 
@@ -98,6 +119,8 @@ Keep it lean — omit empty/boilerplate sections rather than filling them with
 - About to commit, push, or open a PR → STOP. None of that is in scope.
 - About to persist the plan before the user approved it → STOP. Draft, present,
   approve, then write.
+- About to hardcode this skill's example step ordering into a repo it doesn't fit
+  → STOP. Read the repo's `CLAUDE.md` and follow its layering.
 - About to re-transition a ticket that's already In Progress, or force a
   transition that isn't offered → STOP. The transition is idempotent and
   best-effort; skip and continue.
