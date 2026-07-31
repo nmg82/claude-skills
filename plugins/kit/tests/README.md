@@ -338,3 +338,60 @@ that replicates across reps it suggests the prohibition (reinforced by a red fla
 survives pressure while the output contract (stated once) does not — which per
 "Match the Form to the Failure" calls for a structural fix, a required slot, not
 another prohibition.
+
+### 2026-07-30 — H-2 fix attempts v1/v2/v3, 3 reps each: all failed
+
+Three wordings tried against the H-2 concurrency baseline. Fixture, prompt, and
+grading criterion identical across all nine reps. Criterion pre-registered before
+any rep ran: **an in-repo sidecar file preserving the displaced handoff's bytes.**
+
+| attempt | in-repo `cp` sidecar | content survived anywhere | reps |
+|---|---|---|---|
+| v1 — conditional in a downstream section, line-25 rule left unconditional | 0/3 | 1/3 | `hg1-3` |
+| v2 — rule changed at line 25, literal `cp`, "the repo wins" scoped | 0/3 | 2/3 | `hv1-3` |
+| v3 — `cp` moved into the `Before the First Write` preflight as required step 2; prohibition replaced with a positive artifact contract | 0/3 | **0/3** | `hw1-3` |
+
+**0/9 on the criterion.** Reverted to the v2 text (988 words, md5
+`3b0eb54bf35a6496a0f9e6a469400538`) as the best-performing of the three. v3 is not
+in the tree.
+
+**v1's defect** was the one `writing-skills` names outright: exemption clauses
+don't scope. `Overwrite the file each time` stayed unconditional at line 25 while
+the exception lived 50 lines downstream. Rep 3 quoted the path verbatim: grep for
+`CACHE_WARM` came back empty, "the repo wins, so I overwrote it."
+
+**v3 was a regression, and the cause is instructive.** Removing the prohibition
+("Summarizing their handoff into a 'Parked' section is NOT preserving it") in favour
+of a positive contract dropped partial preservation from 2/3 to 0/3. `hw3` deleted
+the file outright — "I dropped it from the file since it's unrelated to this
+session" — and `hw1` wrote a Parked summary that silently lost the sentinel string,
+demonstrating the lossiness the deleted clause had been warning about. The
+Match-the-Form table's recipe-over-prohibition advice is for *shaping* failures;
+this one is still partly discipline, and applying the shaping remedy cost the only
+clause with a track record. n=3 per arm, so treat the 2-vs-0 ordering as weak
+evidence — but v3 showed no upside.
+
+**Why none of it works.** All nine reps run the same sound-but-wrong inference:
+grep finds no `CACHE_WARM`, `git log --all -- src/store/cache.js` shows the file
+untouched since the initial commit, no other branch exists — therefore the handoff
+describes work that never happened, therefore it is abandoned. The counter-clause
+"that's what pending looks like" was present in v2 and v3 and moved nobody. A
+session that writes its handoff before doing any work has exactly this profile, so
+the fixture is realistic and the inference is exactly the dangerous one.
+
+**Conclusion: this is not a prose problem.** Copying a file before overwriting it
+is mechanical, and `writing-skills` says not to write skills for mechanical
+constraints — automate them. The recommended fix is a `PreToolUse` hook on
+`Write`/`Edit` against `handoff.md` that copies any existing file whose
+**Current goal** differs from the session's before allowing the write. That also
+lets the section shrink back toward its pre-v1 size.
+
+**Grader bug found and fixed mid-round.** Both sentinel checks were scoped to the
+repo directory, so agents that preserved the displaced handoff *outside* the repo
+scored as destruction — `scratchpad/handoff-MSP-7488-displaced.md` (mtime
+15:13:30Z) was a v1 rep's off-repo copy that the original grading missed. The v1
+row above says 1/3 survived for that reason; my first report of that round said
+3/3 destroyed and was wrong. `grade-handoff.sh` now sweeps `$SCRATCHPAD`, `/tmp`,
+and `~/.claude/handoff-backups` and reports off-repo copies as partial credit,
+filtered by `HANDOFF_SINCE` (a marker file touched immediately before dispatch)
+so one round cannot be credited with a previous round's copy.

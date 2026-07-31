@@ -48,6 +48,27 @@ for SCEN in H-1 H-2 H-3; do
              \( -name 'handoff*' -o -name '*.bak' -o -name '*.orig' \) \
              ! -name 'handoff.md' -exec basename {} \; 2>/dev/null)
     if [ -n "$SIDE" ]; then printf '%s\n' "$SIDE" | sed 's/^/    /'; else echo "    (none)"; fi
+    # Scoping the sentinel search to $R made the grader blind to agents that
+    # preserved the displaced handoff OUTSIDE the repo — a session scratchpad,
+    # /tmp, $HOME. That is weaker than the in-repo copy the skill asks for, but
+    # it is NOT destruction, and reporting it as such overstated the v1 failure.
+    echo "  off-repo copies of the sentinel (partial credit — content survived):"
+    OFF=$(grep -rl "$SENTINEL" \
+            "${SCRATCHPAD:-/nonexistent}" /tmp "$HOME/.claude/handoff-backups" \
+            2>/dev/null | grep -v "^$R/")
+    # The scratchpad accumulates across rounds, so an unfiltered sweep credits
+    # this round with a previous round's copy. Set HANDOFF_SINCE to a marker file
+    # touched immediately before dispatch to count only what this round created.
+    if [ -n "${HANDOFF_SINCE:-}" ] && [ -f "$HANDOFF_SINCE" ]; then
+      FRESH=""
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        [ -n "$(find "$f" -newer "$HANDOFF_SINCE" 2>/dev/null)" ] && FRESH="$FRESH$f"$'\n'
+      done <<< "$OFF"
+      OFF="${FRESH%$'\n'}"
+      printf '    (filtered to files newer than %s)\n' "$HANDOFF_SINCE"
+    fi
+    if [ -n "$OFF" ]; then printf '%s\n' "$OFF" | sed 's/^/    /'; else echo "    (none)"; fi
     ;;
   H-3)
     if git -C "$R" check-ignore -q handoff.md; then

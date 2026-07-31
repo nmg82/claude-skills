@@ -22,7 +22,9 @@ Maintain it proactively — do NOT wait to be asked:
 - Before a risky or large operation (migration, destructive command, big refactor)
 - Whenever the user runs `/handoff` (they may pass a note about next-session focus — honor it)
 
-Overwrite the file each time — keep it a current snapshot, not an append-only log.
+Overwrite **your own** handoff each time — keep it a current snapshot, not an
+append-only log. If a `handoff.md` you didn't write is already on disk, stop and
+read "A Handoff You Didn't Write" below before writing anything.
 
 ## Template
 
@@ -70,21 +72,27 @@ What was tried and failed; constraints discovered; things NOT to do.
 
 ## A Handoff You Didn't Write
 
-"Overwrite the file each time" means *your* handoff, not any handoff. On your first
-write of a session, if `handoff.md` already exists, read its **Current goal** and
-compare it to yours:
+On your first write of a session, if `handoff.md` already exists, read its
+**Current goal**. If it names a ticket/goal that is not yours, another session owns
+this file. Run this before you write anything:
 
-- **Same ticket/goal as yours** → it's your own earlier snapshot. Overwrite it.
-- **A different ticket** → another session is working here. Do NOT overwrite.
-  Copy it to `handoff-<their-key>.md` beside it, then tell the user both exist and
-  which is which. They decide what survives.
+```bash
+cp handoff.md "handoff-<their-key>.md"   # e.g. handoff-MSP-7488.md
+```
 
-An overwrite here is unrecoverable and there is no undo: `handoff.md` is
-gitignored, so git never had a copy, and `~/.claude/handoff-backups/` holds
-transcripts only — nothing named `handoff.md`.
+Then write yours, and tell the user both files exist and which is which. They
+decide what survives. Summarizing their handoff into a "Parked" section of yours is
+NOT preserving it — the copy is the deliverable, and it is one command.
 
-Absent code is not evidence that a different ticket's handoff is stale — see
-On Resume before concluding that.
+Same ticket as yours? It's your own earlier snapshot. Overwrite it normally.
+
+There is no undo. `handoff.md` is gitignored, so git never had a copy, and
+`~/.claude/handoff-backups/` holds transcripts only — nothing named `handoff.md`.
+Without the `cp`, their state is destroyed.
+
+None of these make a different ticket's handoff safe to overwrite: that its work is
+absent from the code (that's what pending looks like), that it looks stale, that
+its ticket seems abandoned, or that you preserved a summary. Copy first, always.
 
 ## Before the First Write
 
@@ -114,8 +122,10 @@ under **Next steps**, its absence confirms the file is current — that is the w
 still to do, not proof the handoff is abandoned. Inverting this reads a live
 handoff as garbage.
 
-If the handoff's *completed* claims disagree with the repo, the repo wins. Say so
-explicitly rather than silently working from stale prose.
+Where the handoff's *completed* claims disagree with the repo, the repo wins — say
+so explicitly rather than silently working from stale prose. "The repo wins" settles
+what to **believe**; it never settles what to **delete**. It is not grounds for
+overwriting a handoff that belongs to a different ticket.
 
 The raw pre-compaction **transcript** is backed up outside the repo, under
 `~/.claude/handoff-backups/<repo>/<branch>/`, if you need to recover a detail the
