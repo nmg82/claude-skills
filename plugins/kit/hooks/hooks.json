@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$CLAUDE_PROJECT_DIR/handoff.md\"; if [ -f \"$f\" ]; then ts=$(date -r \"$f\" '+%Y-%m-%d %H:%M' 2>/dev/null || stat -c %y \"$f\" 2>/dev/null); echo \"An existing handoff.md was found for this worktree (last updated: ${ts:-unknown}). Read it now to restore context before continuing. If it predates recent commits, trust the repo over the handoff and say so:\"; echo; cat \"$f\"; fi"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\""
           }
         ]
       }

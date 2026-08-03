@@ -86,6 +86,11 @@ continuing — but **verify it before trusting it**. The hook prints the file's
 last-modified time; a handoff older than the repo's recent activity may describe
 work that is already done.
 
+If the hook reports the handoff looks **retired**, it withheld the body on
+purpose and injected nothing but the stated goal. Treat that as a prompt to
+check, not a fact: confirm with the commands below, then either offer to delete
+the file or read it yourself and carry on.
+
 ```bash
 git log --oneline -5          # is work the handoff calls DONE actually committed?
 git branch --show-current     # is the branch it names still the one you're on?
@@ -112,3 +117,7 @@ told to trust it.
 Retire it as part of `superpowers:finishing-a-development-branch`. If you find a
 handoff describing work that git shows is already merged, say so and offer to
 delete it.
+
+The SessionStart hook flags likely-retired handoffs — merged branch, deleted
+remote branch, or untouched for 30+ days — but it never deletes. Acting on that
+flag is your job.

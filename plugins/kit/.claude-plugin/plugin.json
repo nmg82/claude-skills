@@ -1,6 +1,6 @@
 {
   "name": "kit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Nathan's workflow skills: handoff (session continuity), pr-review (no-auto-post review ending in a merge verdict), pr-triage (answer review comments on your PR), and ticket-kickoff (Jira ticket -> worktree + plan).",
   "author": {
     "name": "Nathan Gladson"

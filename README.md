@@ -10,7 +10,7 @@ A single marketplace (`claude-skills`) containing one plugin:
 
 | Skill | What it does |
 |-------|--------------|
-| `/kit:handoff` | Maintains a capped (~600 word) `handoff.md` session-state snapshot that survives compaction, resume, `/clear`, and `/fork`. Ships with hooks that re-inject it with its last-modified time, and back up the raw transcript outside the repo before any compact. Verifies the handoff against git state on resume, and retires it when the branch merges. |
+| `/kit:handoff` | Maintains a capped (~600 word) `handoff.md` session-state snapshot that survives compaction, resume, `/clear`, and `/fork`. Ships with hooks that re-inject it with its last-modified time, and back up the raw transcript outside the repo before any compact. On session start the hook checks whether the handoff looks retired (merged branch, deleted remote branch, or 30+ days untouched) and withholds the body if so, rather than spending ~1k tokens on dead context. |
 | `/kit:pr-review` | Structured PR review delivered in chat first — **never auto-posts**. Cross-checks existing bot/human threads, traces the changed call paths, and always ends in a merge verdict (`APPROVE` / `APPROVE WITH NITS` / `REQUEST CHANGES`). The Codex consensus pass is offered as a closing footnote, never a blocking question. Uses `gh` for all GitHub operations. |
 | `/kit:pr-triage` | The inverse of pr-review: triages unresolved review comments on **your** PR. Clusters duplicate bot comments, grades each against the diff + conventions + plan/decisions, presents an approval table, applies approved fixes locally, **verifies green**, then commits/pushes/replies/resolves behind a single explicit "go". Never resolves human threads. |
 | `/kit:ticket-kickoff` | Turns a Jira ticket into a ready-to-work setup: pulls the ticket (Atlassian MCP), creates an isolated git worktree, moves the ticket to In Progress, gathers context (linked tickets + wiki + the code it touches), and persists an approved plan to `.claude-plans/<KEY>-<slug>/plan.md`. Sets up and plans — does not write feature code. |
@@ -115,3 +115,37 @@ EOF
 If you'd rather not depend on every machine's global config, commit those two
 entries to each repo's `.gitignore` instead — the handoff skill's preflight check
 will tell you when one is missing.
+
+## Handoff retirement check
+
+`handoff.md` has no TTL — nothing expires it, and a forgotten one gets injected
+into every future session in that directory as authoritative context. Left alone
+that adds up: three real handoffs measured 33, 54, and 7 days old, together
+costing ~3,700 tokens per session start while describing work their own **Current
+goal** called DONE.
+
+`hooks/session-start.sh` guards against that. Before injecting, it looks for
+offline evidence the handoff is retired:
+
+| Signal | Result |
+|---|---|
+| On a feature branch fully merged into the default branch | Body withheld |
+| On a feature branch whose tracked `origin/<branch>` is gone | Body withheld |
+| Untouched for 30+ days (`STRONG_AGE_DAYS`) | Body withheld |
+| Untouched for 14+ days (`SOFT_AGE_DAYS`) | Injected, plus a check-it note |
+| Anything else | Injected unchanged |
+
+When the body is withheld you still get the file's path and its stated goal, so
+nothing is lost — the agent can just read the file. Measured on the three real
+files, this cut the injection from ~3,661 to ~1,819 tokens per session start.
+
+Two deliberate limits. **It never deletes anything**; it prints evidence and
+tells the agent to confirm with `git log` and `gh pr view` before offering to
+delete. And **it makes no network calls** — everything is local git plumbing plus
+the file's mtime, so it can't slow down session start. The cost of that choice is
+a squash-merge blind spot: a squash leaves no ancestry, so a squash-merged branch
+is caught only once its remote branch is deleted or it ages past 30 days.
+
+The branch signals are skipped on the default branch, where "merged" is
+meaningless. That matters more than it sounds: all three real stale handoffs were
+sitting on `main`, so the age check is what actually catches them.
