@@ -28,12 +28,40 @@ and `/kit:ticket-kickoff`. The handoff hooks activate automatically — no
 
 ## Updating
 
+Three steps, and skipping any one of them silently leaves you on the old copy:
+
 ```
-/plugin update kit@claude-skills
+/plugin marketplace update claude-skills   # 1. refresh the marketplace clone
+/plugin update kit@claude-skills           # 2. install the new version
+                                           # 3. restart Claude Code
 ```
 
-Third-party marketplaces don't auto-update by default, so pull updates manually
-when you want them.
+**1. Refresh the marketplace first.** Third-party marketplaces don't auto-update.
+`~/.claude/plugins/marketplaces/claude-skills` is a git clone; until it's pulled,
+`/plugin update` is reading a stale `plugin.json` and won't know a new version
+exists. This is the step most likely to make an update look like a no-op.
+
+**2. Bump the version in `plugin.json` when you publish.** Plugins are cached per
+version at `~/.claude/plugins/cache/claude-skills/kit/<version>/`. If you commit
+skill changes without bumping the version, the marketplace still advertises the
+version you already have installed, and the update reports success (or
+already-up-to-date) without replacing anything. Committing several changes under
+one version number is the classic way to lose them.
+
+**3. Restart.** `claude plugin update` says so itself: *"Update a plugin to the
+latest version (restart required to apply)."* The running session holds the old
+plugin directory. Skill text is re-read per invocation, but `hooks/hooks.json` is
+loaded at session start, so hook changes need a restart (or `/reload-plugins`)
+regardless.
+
+Verify what's actually live:
+
+```bash
+jq '.plugins["kit@claude-skills"]' ~/.claude/plugins/installed_plugins.json
+```
+
+That reports the resolved `installPath`, `version`, and `gitCommitSha` — compare
+the sha against `git log -1` in this repo. If they differ, the update didn't land.
 
 ## Local development
 
