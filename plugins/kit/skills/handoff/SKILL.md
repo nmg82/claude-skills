@@ -23,8 +23,10 @@ Maintain it proactively — do NOT wait to be asked:
 - Whenever the user runs `/handoff` (they may pass a note about next-session focus — honor it)
 
 Overwrite **your own** handoff each time — keep it a current snapshot, not an
-append-only log. If a `handoff.md` you didn't write is already on disk, stop and
-read "A Handoff You Didn't Write" below before writing anything.
+append-only log. On your first write of a session, if an existing `handoff.md`
+names a goal that isn't yours, another session owns it: run
+`cp handoff.md handoff-<their-key>.md` before overwriting, and tell the user both
+files exist. There is no undo — the file is gitignored, so git never had a copy.
 
 ## Template
 
@@ -62,37 +64,13 @@ What was tried and failed; constraints discovered; things NOT to do.
   exist elsewhere.
 - **Redact secrets and PII.** Never write API keys, tokens, passwords, or
   personal data into the file.
-- **Stay under 400 words**, measured with `wc -w handoff.md`. This file is injected
-  into context at every session start, so its size taxes every future session in
-  this worktree. The cap is not a target to fill. Each overwrite prunes: drop
-  what's now irrelevant, collapse finished steps into one line, and move anything
-  past the cap into a linked doc. Drop empty sections rather than padding them.
+- **Stay under 600 words**, measured with `wc -w handoff.md`. This file is
+  injected at every session start, so its size taxes every future session in
+  this worktree. It's a ceiling, not a target. Each overwrite prunes: drop
+  what's now irrelevant, collapse finished steps into one line, move overflow
+  into a linked doc, and delete empty sections rather than padding them.
 - **Stay current.** A stale handoff is worse than none — update it as state
   changes.
-
-## A Handoff You Didn't Write
-
-On your first write of a session, if `handoff.md` already exists, read its
-**Current goal**. If it names a ticket/goal that is not yours, another session owns
-this file. Run this before you write anything:
-
-```bash
-cp handoff.md "handoff-<their-key>.md"   # e.g. handoff-MSP-7488.md
-```
-
-Then write yours, and tell the user both files exist and which is which. They
-decide what survives. Summarizing their handoff into a "Parked" section of yours is
-NOT preserving it — the copy is the deliverable, and it is one command.
-
-Same ticket as yours? It's your own earlier snapshot. Overwrite it normally.
-
-There is no undo. `handoff.md` is gitignored, so git never had a copy, and
-`~/.claude/handoff-backups/` holds transcripts only — nothing named `handoff.md`.
-Without the `cp`, their state is destroyed.
-
-None of these make a different ticket's handoff safe to overwrite: that its work is
-absent from the code (that's what pending looks like), that it looks stale, that
-its ticket seems abandoned, or that you preserved a summary. Copy first, always.
 
 ## Before the First Write
 
@@ -105,10 +83,8 @@ untracked file into a shared repo.
 
 When a SessionStart hook surfaces an existing `handoff.md`, read it before
 continuing — but **verify it before trusting it**. The hook prints the file's
-last-modified time; a handoff older than the repo's recent activity describes
-work that may already be done or abandoned.
-
-Check state before acting on it:
+last-modified time; a handoff older than the repo's recent activity may describe
+work that is already done.
 
 ```bash
 git log --oneline -5          # is work the handoff calls DONE actually committed?
@@ -116,22 +92,15 @@ git branch --show-current     # is the branch it names still the one you're on?
 gh pr view --json state       # is the PR it points at already merged/closed?
 ```
 
-Read each result against the section it came from. Missing work is evidence of
-staleness only where the handoff claims it is **done**. Where the handoff lists it
-under **Next steps**, its absence confirms the file is current — that is the work
-still to do, not proof the handoff is abandoned. Inverting this reads a live
-handoff as garbage.
-
-Where the handoff's *completed* claims disagree with the repo, the repo wins — say
-so explicitly rather than silently working from stale prose. "The repo wins" settles
-what to **believe**; it never settles what to **delete**. It is not grounds for
-overwriting a handoff that belongs to a different ticket.
+Where the handoff's *completed* claims disagree with the repo, the repo wins —
+say so explicitly rather than silently working from stale prose. Work listed
+under **Next steps** being absent from the code is not staleness; that is just
+pending work.
 
 The raw pre-compaction **transcript** is backed up outside the repo, under
 `~/.claude/handoff-backups/<repo>/<branch>/`, if you need to recover a detail the
-handoff missed. Transcripts only — that directory holds no copy of `handoff.md` and
-cannot restore one that was overwritten. Backups keep the newest 5 per branch and
-are dropped after 90 days.
+handoff missed. Backups keep the newest 5 per branch and are dropped after 90
+days.
 
 ## Retiring the Handoff
 
