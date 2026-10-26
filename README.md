@@ -10,7 +10,7 @@ A single marketplace (`claude-skills`) containing one plugin:
 
 | Skill | What it does |
 |-------|--------------|
-| `/kit:handoff` | Maintains a capped (~600 word) `handoff.md` session-state snapshot that survives compaction, resume, `/clear`, and `/fork`. Ships with hooks that re-inject it with its last-modified time, and back up the raw transcript outside the repo before any compact. On session start the hook checks whether the handoff looks retired (merged branch, deleted remote branch, or 30+ days untouched) and withholds the body if so, rather than spending ~1k tokens on dead context. |
+| `/kit:handoff` | Maintains a capped (~600 word) `handoff.md` session-state snapshot that survives compaction, resume, `/clear`, and `/fork`, rewritten each time and never appended to; history for multi-day work goes in a linked tracker that is never injected. Ships with hooks that re-inject it with its last-modified time, and back up the raw transcript outside the repo before any compact. On session start the hook checks whether the handoff looks retired (merged branch, deleted remote branch, or 30+ days untouched) and withholds the body if so, rather than spending ~1k tokens on dead context. |
 | `/kit:pr-review` | Structured PR review delivered in chat first — **never auto-posts**. Cross-checks existing bot/human threads, traces the changed call paths, and always ends in a merge verdict (`APPROVE` / `APPROVE WITH NITS` / `REQUEST CHANGES`). The Codex consensus pass is offered as a closing footnote, never a blocking question. Uses `gh` for all GitHub operations. |
 | `/kit:pr-triage` | The inverse of pr-review: triages unresolved review comments on **your** PR. Clusters duplicate bot comments, grades each against the diff + conventions + plan/decisions, presents an approval table, applies approved fixes locally, **verifies green**, then commits/pushes/replies/resolves behind a single explicit "go". Never resolves human threads. |
 | `/kit:ticket-kickoff` | Turns a Jira ticket into a ready-to-work setup: pulls the ticket (Atlassian MCP), creates an isolated git worktree, moves the ticket to In Progress, gathers context (linked tickets + wiki + the code it touches), and persists an approved plan to `.claude-plans/<KEY>-<slug>/plan.md`. Sets up and plans — does not write feature code. |
@@ -79,7 +79,12 @@ Grep/Glob:
 
 ```
 ~/.claude/handoff-backups/<repo>/<branch>/transcript-<ts>.jsonl
+~/.claude/kit/trackers/<KEY>.md
 ```
+
+Trackers are the handoff's second tier: an unbounded, dated log for work that
+spans days, linked from `handoff.md` but never injected. History goes there so
+the injected handoff stays a ≤600-word snapshot.
 
 Raw pre-compaction transcripts, captured on both auto and manual `/compact`.
 Retention is newest 5 per branch, and anything past 90 days is dropped. The
