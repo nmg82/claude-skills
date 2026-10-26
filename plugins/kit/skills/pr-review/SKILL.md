@@ -19,7 +19,8 @@ approval, editing the PR, merging, or implementing the fixes you recommend.
 1. **Identify the PR** and read the diff using the `gh` CLI (`gh pr view`,
    `gh pr diff`). Read-only.
 2. **Read the existing review threads** — `gh pr view <N> --comments` plus the
-   thread query below. Bots (Copilot, CodeRabbit, Codex) and humans may have
+   thread query in GitHub Interaction, which also says which threads are
+   resolved. Bots (Copilot, CodeRabbit, Codex) and humans may have
    already raised what you're about to raise. You need this before forming
    findings, not after, so each one can be marked net-new or already-raised.
 3. **Trace the changed code paths.** Read the callers and callees of every
@@ -27,8 +28,13 @@ approval, editing the PR, merging, or implementing the fixes you recommend.
    cases — rotation, refresh, races, retries, error paths — in the code the diff
    actually reaches. See "Fanning Out" for when to parallelize this.
 4. **Deliver the review in chat** in the required output shape below. Post nothing.
-5. **Wait for the user to pick** which findings to post, if any.
-6. **Post only the approved comments**, exactly as approved.
+5. **Wait for the user to pick** which findings to post, if any. Then draft the
+   exact text of each — written for the PR's author, not for the user: what
+   breaks, the input that triggers it, and a suggested fix, in plain language,
+   with no names. Show every comment verbatim and wait for approval of the
+   wording.
+6. **Post only the approved comments**, exactly as approved, as one review (see
+   Posting below).
 7. **Verify after the author responds.** This is usually a later session — do not
    trust memory or a stale handoff. Re-derive state from `gh`: which comments were
    posted, what commits landed since, whether each flagged item actually changed
@@ -40,7 +46,8 @@ Every review has these four parts, in this order. Part 4 is required — a revie
 without a verdict is not finished.
 
 1. **Blocking issues** — correctness, security, or data-loss defects. Each with
-   `file:line`, what breaks, and the input or state that triggers it.
+   `file:line` (or "PR-level" for things like a stale base branch), what
+   breaks, and the input or state that triggers it.
 2. **Nits** — non-blocking: naming, style, minor duplication, test gaps.
 3. **Already raised** — findings an existing bot or human comment already covers.
    One line each, naming the author. Don't restate their reasoning; the point is
@@ -53,8 +60,8 @@ without a verdict is not finished.
    | `APPROVE WITH NITS` | No blocking issues; listed nits worth fixing but not gating. |
    | `REQUEST CHANGES` | At least one blocking issue. |
 
-   Follow it with one line of reason. If something material could not be
-   determined — an untestable path, a claim the code can't confirm — say so in
+   Follow it with a short reason, one to three sentences. If something material
+   could not be determined — an untestable path, a claim the code can't confirm — say so in
    the reason rather than rounding it to a verdict.
 
 Report a finding once. If it appears in Part 3, it does not also appear in Parts
@@ -65,23 +72,10 @@ Report a finding once. If it appears in Part 3, it does not also appear in Parts
 Any number, count, or measurement in a finding carries what produced it — the
 command, query, file, or benchmark, and its scope. Never present an unscoped
 count as time-bounded ("today's", "recent") unless a filter was actually
-applied. If a claim in the PR description can't be verified from the code, say
-that instead of accepting or dismissing it.
-
-## The Consensus Pass
-
-Default to a thorough Claude-only review. **Never gate the review on a consensus
-yes/no** — the review must reach its verdict on its own.
-
-When the review is delivered, if an independent second model would add real
-value (subtle concurrency, security-sensitive crypto/auth paths, a
-correctness-critical algorithm), append one closing line offering it:
-
-> Optional: a Codex consensus pass would add an independent second model on
-> <specific reason>. It spends OpenAI budget — say the word.
-
-Run `codex-consensus:consensus-review` only on an explicit request, or when the
-user has set a standing always-on default in `CLAUDE.md`.
+applied. A number taken from the PR description is the author's claim — attribute
+it ("per the PR description") rather than repeating it as fact. If a claim in
+the PR description can't be verified from the code, say that instead of
+accepting or dismissing it.
 
 ## Fanning Out
 
@@ -118,13 +112,39 @@ gh pr view <N>                    # metadata
 gh pr diff <N>                    # the diff
 gh pr view <N> --comments         # conversation comments
 gh api "repos/$OWNER/$REPO/pulls/$NUM/comments" --paginate   # inline comments
-# Post — only when approved
-gh pr comment <N>   /   gh pr review <N>
+# Threads, with resolved/outdated state
+gh api graphql --paginate -F owner="$OWNER" -F repo="$REPO" -F num="$NUM" -f query='
+  query($owner: String!, $repo: String!, $num: Int!, $endCursor: String) {
+    repository(owner: $owner, name: $repo) { pullRequest(number: $num) {
+      reviewThreads(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { isResolved isOutdated path line
+          comments(first: 1) { nodes { author { login } body } } } } } } }'
 ```
 
 Do not use the web UI or any other mechanism. If `gh` is unavailable (e.g. not
 authenticated), stop and tell the user rather than falling back to something
 else. Subagents dispatched for review must also use `gh`.
+
+### Posting (only when approved)
+
+Post the approved findings as **one review**: inline comments for findings with
+a `file:line`, the review body for PR-level ones. The verdict picks the event:
+`APPROVE` and `APPROVE WITH NITS` → `APPROVE`, `REQUEST CHANGES` →
+`REQUEST_CHANGES`. On the user's own PR GitHub rejects both, so use `COMMENT`.
+
+```bash
+gh api "repos/$OWNER/$REPO/pulls/$NUM/reviews" --input - <<'EOF'
+{ "event": "REQUEST_CHANGES",
+  "body": "<PR-level findings, or a one-line summary>",
+  "comments": [
+    { "path": "src/auth.js", "line": 42, "side": "RIGHT", "body": "<approved text>" } ] }
+EOF
+```
+
+`line` must fall inside the diff (GitHub answers 422 otherwise); for a range,
+add `start_line`. With no inline comments, `gh pr review <N> --approve`,
+`--request-changes`, or `--comment` with `-b "<body>"` does the same.
 
 **Decided against: a GitHub MCP server.** `gh` keeps one auth path and an
 auditable command trail; a second transport adds an auth surface for capability
@@ -137,8 +157,7 @@ auditable command trail; a second transport adds an auth surface for capability
 - About to edit a file in the PR you were only asked to review → STOP.
 - Dispatching a review subagent without the no-auto-post rule in its prompt → STOP.
 - Reaching for the web UI or a non-`gh` mechanism for a GitHub operation → STOP.
-- About to block the review on a consensus yes/no → STOP. Finish the review,
-  offer it at the end.
+- About to post wording the user hasn't seen verbatim → STOP. Draft, show, wait.
 - About to deliver findings with no verdict → STOP. Part 4 is required.
 - About to report a finding without reading existing review threads → STOP. You
   may be duplicating a bot.
