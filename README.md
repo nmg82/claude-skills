@@ -129,11 +129,23 @@ offline evidence the handoff is retired:
 
 | Signal | Result |
 |---|---|
-| On a feature branch fully merged into the default branch | Body withheld |
-| On a feature branch whose tracked `origin/<branch>` is gone | Body withheld |
+| On a feature branch with commits of its own, fully merged into the default branch | Body withheld |
+| On a feature branch whose configured upstream is gone (`git` reports `[gone]`) | Body withheld |
 | Untouched for 30+ days (`STRONG_AGE_DAYS`) | Body withheld |
 | Untouched for 14+ days (`SOFT_AGE_DAYS`) | Injected, plus a check-it note |
+| Over 8,000 bytes (`MAX_INJECT_BYTES`) | Only **Current goal** and the first "next" section, plus the path |
+| Over 600 words (`WORD_CAP`) | Injected, plus a prune-it note |
 | Anything else | Injected unchanged |
+
+A fresh branch with no commits of its own is not "merged" just because the
+default branch moved past it; the check requires the branch tip to be off the
+default branch's first-parent line. The upstream check reads git's own tracking
+state, because the names often differ: `worktree-X` may track `origin/X`, or
+`origin/main` itself.
+
+The size guard exists because Claude Code replaces hook output over ~10,000
+characters with a 2 KB preview and a file path. One handoff grew to 8,720 words
+by repeated appends, and from then on sessions started with only its first 2 KB.
 
 When the body is withheld you still get the file's path and its stated goal, so
 nothing is lost — the agent can just read the file. Measured on the three real
