@@ -3,12 +3,12 @@
   "owner": {
     "name": "Nathan Gladson"
   },
-  "description": "Nathan's Claude Code skills and workflow tooling.",
+  "description": "Claude Code skills and workflow tooling.",
   "plugins": [
     {
       "name": "kit",
       "source": "./plugins/kit",
-      "description": "Workflow skills: handoff (session continuity), pr-review (no-auto-post review ending in a merge verdict), pr-triage (answer review comments on your PR), ship (commit, push, open or update the PR behind one go), ticket-kickoff (Jira ticket -> worktree + plan)."
+      "description": "Workflow skills: handoff (session continuity), operator (write and walk prod run sheets, investigate prod with approved reads, behind a prod-command guard hook), pr-review (no-auto-post review ending in a merge verdict), pr-triage (answer review comments on your PR), ship (commit, push, open or update the PR behind one go), ticket-kickoff (Jira ticket -> worktree + plan)."
     }
   ]
 }

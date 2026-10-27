@@ -1,7 +1,7 @@
 {
   "name": "kit",
-  "version": "0.11.0",
-  "description": "Nathan's workflow skills: handoff (session continuity), pr-review (no-auto-post review ending in a merge verdict), pr-triage (answer review comments on your PR), ship (commit, push, open or update the PR behind one go), and ticket-kickoff (Jira ticket -> worktree + plan).",
+  "version": "0.12.0",
+  "description": "Workflow skills: handoff (session continuity), operator (write and walk prod run sheets, investigate prod with approved reads, behind a prod-command guard hook), pr-review (no-auto-post review ending in a merge verdict), pr-triage (answer review comments on your PR), ship (commit, push, open or update the PR behind one go), and ticket-kickoff (Jira ticket -> worktree + plan).",
   "author": {
     "name": "Nathan Gladson"
   }

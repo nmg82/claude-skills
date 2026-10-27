@@ -1,6 +1,6 @@
 # claude-skills
 
-Nathan's Claude Code skills and workflow tooling, packaged as a plugin marketplace.
+Claude Code skills and workflow tooling, packaged as a plugin marketplace.
 
 ## What's here
 
@@ -11,6 +11,7 @@ A single marketplace (`claude-skills`) containing one plugin:
 | Skill | What it does |
 |-------|--------------|
 | `/kit:handoff` | Maintains a capped (~600 word) `handoff.md` session-state snapshot that survives compaction, resume, `/clear`, and `/fork`, rewritten each time and never appended to; history for multi-day work goes in a linked tracker that is never injected. Ships with hooks that re-inject it with its last-modified time, and back up the raw transcript outside the repo before any compact. On session start the hook checks whether the handoff looks retired (merged branch, deleted remote branch, or 30+ days untouched) and withholds the body if so, rather than spending ~1k tokens on dead context; an oversized handoff gets only its goal and next steps injected, so it can't hit the hook output cap. |
+| `/kit:operator` | Prod AWS work, done the same way in every repo. Writes run sheets in one block format that never refers back: each block sources the run's env file, carries an **Expect:** line, and repeats commands in full rather than pointing up the page. Walks any sheet or runbook one block at a time, calling GO or STOP against the Expect and writing the record line, while **you run every prod command yourself**. Investigates prod with reads you approve one command at a time, and never writes. On start it checks the prod profile list the guard hook reads (see below) and offers to set it up. |
 | `/kit:pr-review` | Structured PR review delivered in chat first — **never auto-posts**. Cross-checks existing bot/human threads, traces the changed call paths, and always ends in a merge verdict (`APPROVE` / `APPROVE WITH NITS` / `REQUEST CHANGES`). Drafts the author-facing wording for approval, then posts approved findings as one review. Uses `gh` for all GitHub operations. |
 | `/kit:pr-triage` | The inverse of pr-review: triages unresolved review comments on **your** PR. Clusters duplicate bot comments, grades each against the diff + conventions + plan/decisions, presents an approval table, applies approved fixes locally, **verifies green**, then commits/pushes/replies/resolves behind a single explicit "go". Never resolves human threads. |
 | `/kit:ship` | Commits, pushes, and opens or updates the PR for your branch behind one explicit "go". Stages files by name and leaves out plans, specs, handoff, and drafts; runs the repo's checks first; drafts the commit in your format, a `<summary> (MSP-xxxx)` title, and a PR body whose first line is the linked Jira header; greps the diff and drafts for account IDs, profile names, and local paths; merges the default branch in (never rebases) when the branch is behind; reads the PR back after creating it. Never merges the PR or touches Jira. |
@@ -23,9 +24,9 @@ A single marketplace (`claude-skills`) containing one plugin:
 /plugin install kit@claude-skills
 ```
 
-Skills are then available as `/kit:handoff`, `/kit:pr-review`, `/kit:pr-triage`,
-`/kit:ship`, and `/kit:ticket-kickoff`. The handoff hooks activate automatically — no
-`settings.json` editing required.
+Skills are then available as `/kit:handoff`, `/kit:operator`, `/kit:pr-review`,
+`/kit:pr-triage`, `/kit:ship`, and `/kit:ticket-kickoff`. The hooks activate
+automatically — no `settings.json` editing required.
 
 ## Updating
 
@@ -83,6 +84,8 @@ Grep/Glob:
 | `~/.claude/handoff-backups/<repo>/<branch>/transcript-<ts>.jsonl` | the PreCompact hook |
 | `~/.claude/kit/trackers/<KEY>.md` | `handoff` |
 | `~/.claude/kit/plans/<KEY>-<slug>.md` | `ticket-kickoff` |
+| `~/.claude/kit/runs/<date>-<slug>/` | `operator`: the run's `env` file, plus the sheet and its record when there's no repo change |
+| `~/.claude/kit/prod-profiles` | `operator`, only with names you confirm |
 
 **Transcripts** are raw pre-compaction backups, captured on both auto and manual
 `/compact`. Retention is newest 5 per branch, and anything past 90 days is
@@ -100,6 +103,10 @@ the injected handoff stays a ≤600-word snapshot.
 one plan can span a ticket's several PRs, and `pr-triage` finds them by key from
 any folder. Plans from before 0.10.0 sit in `.claude-plans/` inside old
 worktrees; `pr-triage` still looks there.
+
+**Run directories** hold a sheet's `env` file (mode 600, in a mode 700
+directory). Every block sources it, so any block runs in a fresh terminal, and
+values captured before a change are still there after it.
 
 **In the working tree** — one small text file, `handoff.md`. The handoff skill
 checks it's ignored before its first write. A plugin can't modify git config, so
@@ -167,3 +174,50 @@ is caught only once its remote branch is deleted or it ages past 30 days.
 The branch signals are skipped on the default branch, where "merged" is
 meaningless. That matters more than it sounds: all three real stale handoffs were
 sitting on `main`, so the age check is what actually catches them.
+
+## Prod command guard
+
+`hooks/prod-guard.sh` runs before every Bash or Monitor command (a PreToolUse
+hook) and answers one of three ways:
+
+| Command | Result |
+|---|---|
+| Names a profile from `~/.claude/kit/prod-profiles` anywhere, with any tool: `--profile X`, `AWS_PROFILE=X`, `PROFILE=X`, or a script argument | A permission prompt labeled `[plugin:kit]`, even in auto mode |
+| Runs `aws` without a literal profile: no `--profile`, a `$VAR`, or a profile from a sourced file | Denied, and Claude is told to write the profile out so you can see which account it hits |
+| Anything else | Nothing; the normal permission flow applies |
+
+A name that's a plain environment word (`prod`, `staging`, `dev`, `default`)
+counts only in a profile position: `--profile X`, `--profile=X`,
+`AWS_PROFILE=X`, `AWS_DEFAULT_PROFILE=X`, or `PROFILE=X`. So `cd envs/prod` and
+`npm run build:prod` don't prompt, but `--profile prod` does.
+
+A literal `AWS_PROFILE=X` anywhere in the command counts as naming the profile.
+Exempt from the deny, though still checked for prod names: `aws configure
+list-profiles`, `aws configure list` and `get`, `--version`, `help`, and
+`command -v aws`. Heredoc bodies are data, so they're checked for prod names but
+not for `aws` calls.
+
+**The list** is one profile name per line, with `#` comments allowed. Staging in
+the prod account belongs on it. Without the file, or with one that yields no
+names (empty or unreadable), the hook falls back to local profile names
+containing "prod" (from `~/.aws/config` and `~/.aws/credentials`), and its
+prompt says which. `/kit:operator` offers to set it up from your local config;
+the hook itself never writes it.
+Hook changes need a restart (see [Updating](#updating)).
+
+It writes nothing and makes no network calls. Measured over 50 runs each, it
+takes about 40 ms per call on a plain command and on an `aws` command with a
+JMESPath query. Without `jq`, or on input it can't read, it asks on anything
+mentioning `aws` or a prod profile and never denies. If it crashes or times out,
+the command goes through with a hook-error notice: failing closed would stop
+every Bash and Monitor command.
+
+**Limits:**
+- It matches text. A script that picks its own profile, an `AWS_PROFILE`
+  exported by your shell startup files, or a plain-word name passed to a script
+  (`./deploy.sh prod`) gets through.
+- An `aws` call run through another command (`ssh host aws s3 ls`,
+  `bash -c '…'`) isn't seen as one.
+- The Claude Code docs don't say whether a hook's "ask" beats a settings allow
+  rule, or how it behaves under `bypassPermissions` or inside Workflow agents.
+  Keep `Bash(aws…)` out of your allow rules.

@@ -154,6 +154,7 @@ staged, and drafted — and scan it:
 ```bash
 { git -C <repo> diff -U0 origin/<default>...HEAD; git -C <repo> diff -U0 --cached; } \
   | grep '^+' > <scratch>/ship-<repo>-scan.txt
+echo '+++ drafts' >> <scratch>/ship-<repo>-scan.txt
 cat <scratch>/ship-<repo>-commit.txt <scratch>/ship-<repo>-pr-body.md >> <scratch>/ship-<repo>-scan.txt
 echo "<title>" >> <scratch>/ship-<repo>-scan.txt
 grep -nE "(^|[^0-9])[0-9]{12}([^0-9]|\$)|$USER|~/\.claude" <scratch>/ship-<repo>-scan.txt
@@ -168,6 +169,13 @@ grepped: people's names, the user's included, and tenant bucket names. Refer to
 accounts by role ("the prod account") and to values by their SSM parameter
 name. Show every hit at the gate with the fix, or say "none found" and what was
 scanned.
+
+A profile-name hit in a run sheet (a file whose first line is
+`<!-- kit:operator run sheet -->`) or in a `recorded-values.txt` file is
+expected there. Show it at the gate as "expected in a run sheet", with no fix.
+Find a hit's file from the nearest `+++` line above it in the scan file:
+`+++ b/<path>`, or `+++ drafts` for the commit message, PR body, and title,
+where nothing is expected. Account IDs are never expected anywhere.
 
 ## The Gate
 
@@ -227,8 +235,9 @@ rejected push → stop, fetch, show what's on the remote, and ask. Never force.
   → STOP.
 - About to force-push, rebase, amend, or squash → STOP. Sync by merging
   `origin/<default>`.
-- About to put an account ID, profile name, person's name, or local path — a
-  link to the kickoff plan included — in a commit or the PR → STOP.
+- About to put an account ID, a profile name (outside a run sheet or its record
+  file), person's name, or local path — a link to the kickoff plan included — in
+  a commit or the PR → STOP.
 - About to open a PR for a keyed branch without its linked Jira header as line
   1, or with a guessed Jira site → STOP.
 - About to merge the PR, request reviewers, or touch Jira → STOP.
