@@ -188,11 +188,13 @@ Only on "go" / "yes" / "do it":
 
 1. **Commit.** Single commit by default. Stage files by name — never
    `git add -A` or `git add .`, and never plans, specs, `handoff.md`, trackers,
-   or drafts. Message: a one-line summary; a body with one line per fix
+   or drafts — and unstage anything else already in the index
+   (`git restore --staged -- <file>`); `git commit` takes all of it. Message: a one-line summary; a body with one line per fix
    (`- <file>:<line>: <summary>`); then the ticket key(s) on their own line at
    the bottom, above the Co-Authored-By trailer.
-2. **Push** the PR's head branch, and only that branch. Plain `git push` — never
-   force, never rebase. Appending commits is the reviewer's audit trail. If the
+2. **Push** the PR's head branch, and only that branch:
+   `git push origin HEAD:<headRefName>`, never a bare `git push` (a harness
+   worktree branch can track `origin/<default>`). Never force, never rebase. Appending commits is the reviewer's audit trail. If the
    push is rejected, surface it and stop.
 3. **Reply** on each thread, referencing the pushed short SHA.
 4. **Resolve** threads per the resolve policy.

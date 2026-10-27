@@ -30,7 +30,7 @@ the usual project, but don't require it). A Jira URL carries it too. Confirm it
 resolves in Jira before building anything on it.
 
 **Scope:** ticket → worktree + plan. Not in scope: implementing before the user
-says to, committing, pushing, opening a PR.
+says to, committing, pushing, opening a PR (that's `kit:ship`).
 
 ## The Workflow
 

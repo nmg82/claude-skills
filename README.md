@@ -13,6 +13,7 @@ A single marketplace (`claude-skills`) containing one plugin:
 | `/kit:handoff` | Maintains a capped (~600 word) `handoff.md` session-state snapshot that survives compaction, resume, `/clear`, and `/fork`, rewritten each time and never appended to; history for multi-day work goes in a linked tracker that is never injected. Ships with hooks that re-inject it with its last-modified time, and back up the raw transcript outside the repo before any compact. On session start the hook checks whether the handoff looks retired (merged branch, deleted remote branch, or 30+ days untouched) and withholds the body if so, rather than spending ~1k tokens on dead context; an oversized handoff gets only its goal and next steps injected, so it can't hit the hook output cap. |
 | `/kit:pr-review` | Structured PR review delivered in chat first — **never auto-posts**. Cross-checks existing bot/human threads, traces the changed call paths, and always ends in a merge verdict (`APPROVE` / `APPROVE WITH NITS` / `REQUEST CHANGES`). Drafts the author-facing wording for approval, then posts approved findings as one review. Uses `gh` for all GitHub operations. |
 | `/kit:pr-triage` | The inverse of pr-review: triages unresolved review comments on **your** PR. Clusters duplicate bot comments, grades each against the diff + conventions + plan/decisions, presents an approval table, applies approved fixes locally, **verifies green**, then commits/pushes/replies/resolves behind a single explicit "go". Never resolves human threads. |
+| `/kit:ship` | Commits, pushes, and opens or updates the PR for your branch behind one explicit "go". Stages files by name and leaves out plans, specs, handoff, and drafts; runs the repo's checks first; drafts the commit in your format, a `<summary> (MSP-xxxx)` title, and a PR body whose first line is the linked Jira header; greps the diff and drafts for account IDs, profile names, and local paths; merges the default branch in (never rebases) when the branch is behind; reads the PR back after creating it. Never merges the PR or touches Jira. |
 | `/kit:ticket-kickoff` | Turns a Jira ticket into a ready-to-work setup: pulls the ticket (Atlassian MCP), creates an isolated git worktree, moves the ticket to In Progress, gathers context, asks its open questions, and saves an approved decisions-and-tasks plan to `~/.claude/kit/plans/<KEY>-<slug>.md`, outside the repo, where `pr-triage` finds it. Sets up and plans; implementation starts only when you say so. |
 
 ## Install
@@ -23,7 +24,7 @@ A single marketplace (`claude-skills`) containing one plugin:
 ```
 
 Skills are then available as `/kit:handoff`, `/kit:pr-review`, `/kit:pr-triage`,
-and `/kit:ticket-kickoff`. The handoff hooks activate automatically — no
+`/kit:ship`, and `/kit:ticket-kickoff`. The handoff hooks activate automatically — no
 `settings.json` editing required.
 
 ## Updating
