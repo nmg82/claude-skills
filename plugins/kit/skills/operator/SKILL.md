@@ -21,6 +21,9 @@ denies an `aws` call whose profile isn't written out literally. A hook prompt
 right after the user approved in chat is expected; the chat approval comes
 first, every time.
 
+The two scripts below live in `scripts/` under this skill's base directory
+(shown when the skill loads). Run them as `bash`, with the full path.
+
 ## On every start: the profile list
 
 Before any job, check `~/.claude/kit/prod-profiles`.
@@ -29,14 +32,9 @@ Before any job, check `~/.claude/kit/prod-profiles`.
   1. List local profiles with `aws configure list-profiles`. It reads local
      config only, makes no AWS call, and the hook exempts it.
   2. Group them by account without printing an ID:
-     ```bash
-     awk -F' *= *' '/^\[/{p=$0; gsub(/^\[(profile )?|\]$/, "", p); next}
-       $1=="sso_account_id"{a[p]=$2} $1=="role_arn"{split($2, r, ":"); a[p]=r[5]}
-       END{for (p in a) g[a[p]] = g[a[p]] " " p; for (k in g) print "account " ++n ":" g[k]}' \
-       "${AWS_CONFIG_FILE:-$HOME/.aws/config}"
-     ```
-     It prints `account N: name name …`. Profiles with no account in config
-     (static keys) aren't grouped; say so and name them.
+     `scripts/group-profiles.sh`. It prints `account N: name name …` and reads
+     local config only. Profiles with no account in config (static keys) aren't
+     grouped; say so and name them.
   3. Suggest candidates: names containing `prod`, plus every profile in the same
      group as one of those.
   4. The user picks. A plain-word name (`prod`, `staging`, `dev`, `default`)
@@ -144,22 +142,12 @@ so record lines never carry account IDs; profile names are fine. When there's no
 repo change, `sheet.md` and `recorded-values.txt` go in
 `~/.claude/kit/runs/<date>-<slug>/`, next to the env file.
 
-**Before handing over**, run these on the draft and show the output:
-
-~~~bash
-f=<sheet path>
-grep -niE 're-?run|see (step|section)|as above|same as|repeat (step|section)|go back to|scroll up' "$f"
-awk '/^(```|~~~)/{inb=!inb; next} inb && /<[A-Za-z][A-Za-z0-9_.-]*>/{print FILENAME":"NR": "$0}' "$f"
-grep -cE '(^|[^0-9])[0-9]{12}([^0-9]|$)' "$f"
-awk '/^```(sh|bash)/{b++; s=NR; next} s&&/^```/{s=0; e=1; next} e&&NF{if($0!~/^\*\*Expect:\*\*/) print "block "b" (line "NR"): no Expect"; e=0}' "$f"
-awk '/^```(sh|bash)/{b++; f1=1; next} f1{if(b>1 && $0!~/^source ~\/\.claude\/kit\/runs\//) print "block "b" (line "NR"): no source line"; f1=0}' "$f"
-~~~
-
-The first grep finds back-references: rewrite each hit that tells the operator
-to run something again as a full block or a named team-runbook hand-off. Hits
-that only describe the past ("the 2026-10-06 re-run") stay. The second finds placeholders inside shell blocks.
-The third is a count of 12-digit numbers and must be 0. The last two must print
-nothing.
+**Before handing over**, run `scripts/check-sheet.sh` on the draft and show the
+output. It lists back-references: rewrite each hit that tells the operator to
+run something again as a full block or a named team-runbook hand-off; hits that
+only describe the past ("the 2026-10-06 re-run") stay. Its other four checks
+(placeholders in shell blocks, 12-digit numbers, blocks with no Expect, blocks
+with no source line) must say `none`, and the result line must say `pass`.
 
 ## Walking a sheet
 
@@ -202,7 +190,8 @@ it").
 Before each command or batch, show the account by role, read or write, the exact
 command with `--profile` and the name written out, and why it's being run. Run
 only what was approved; the next command needs its own approval. Local-only
-calls (`aws configure list-profiles`, the grouping above) touch no account.
+calls (`aws configure list-profiles`, `scripts/group-profiles.sh`) touch no
+account.
 
 Findings open with a table:
 

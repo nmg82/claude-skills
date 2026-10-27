@@ -74,6 +74,15 @@ To iterate on a skill with live edits (changes apply on next invocation; run
 claude --plugin-dir ~/projects/claude-skills/plugins/kit
 ```
 
+Skill text can't hold `$0`, `$1`, …: Claude Code replaces `$` plus a digit with
+the words the skill was invoked with. Put awk or shell that needs field
+references in a script beside the skill (as `operator/scripts/` does). Before
+shipping, this must print nothing:
+
+```bash
+grep -nE '\$[0-9]' plugins/kit/skills/*/*.md
+```
+
 ## Where things get written
 
 **Outside any repo** — nothing to gitignore, invisible to `git status` and to
